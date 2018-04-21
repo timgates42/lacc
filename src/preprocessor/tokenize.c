@@ -226,13 +226,14 @@ INTERNAL struct token convert_preprocessing_number(struct token t)
     const char *str;
     const char *endptr;
     int len;
-    enum suffix suffix;
+    enum suffix suffix = SUFFIX_NONE;
     struct token tok = {NUMBER};
 
     assert(t.token == PREP_NUMBER);
     str = str_raw(t.d.string);
     len = t.d.string.len;
     tok.leading_whitespace = t.leading_whitespace;
+    assert(*str != '\0');
 
     /*
      * Try to read as integer. Handle suffixes u, l, ll, ul, ull, in all
@@ -240,40 +241,47 @@ INTERNAL struct token convert_preprocessing_number(struct token t)
      */
     errno = 0;
     tok.d.val.u = strtoul(str, (char **) &endptr, 0);
-    suffix = read_integer_suffix(endptr, &endptr);
-    if (endptr - str == len) {
+    if (!errno) {
         assert(isdigit(*str));
-        tok.type = constant_integer_type(tok.d.val.u, suffix, *str != '0');
-    } else {
-        /*
-         * If the integer conversion did not consume the whole token,
-         * try to read as floating point number.
-         *
-         * Note: not using strtold for long double conversion, so might
-         * get incorrect results compared to other compilers.
-         */
-        errno = 0;
-        tok.type = basic_type__double;
-        tok.d.val.d = strtod(str, (char **) &endptr);
-        if (endptr - str < len) {
-            if (*endptr == 'f' || *endptr == 'F') {
-                tok.type = basic_type__float;
-                tok.d.val.f = (float) tok.d.val.d;
-                endptr++;
-            } else if (*endptr == 'l' || *endptr == 'L') {
-                tok.type = basic_type__long_double;
-                tok.d.val.ld = (long double) tok.d.val.d;
-                endptr++;
-            }
+        if (endptr - str != len) {
+            suffix = read_integer_suffix(endptr, &endptr);
+        }
+
+        if (endptr - str == len) {
+            tok.type = constant_integer_type(tok.d.val.u, suffix, *str != '0');
+            return tok;
         }
     }
 
-    if (errno || (endptr - str != len)) {
-        if (errno == ERANGE) {
-            error("Numeric literal '%s' is out of range.", str);
-        } else {
-            error("Invalid numeric literal '%s'.", str);
+    /*
+     * If the integer conversion did not consume the whole token,
+     * try to read as floating point number.
+     *
+     * Note: not using strtold for long double conversion, so might
+     * get incorrect results compared to other compilers.
+     */
+    errno = 0;
+    tok.type = basic_type__double;
+    tok.d.val.d = strtod(str, (char **) &endptr);
+    if (errno) {
+        error("Numeric literal '%s' is out of range.", str);
+        exit(1);
+    }
+
+    if (endptr - str < len) {
+        if (*endptr == 'f' || *endptr == 'F') {
+            tok.type = basic_type__float;
+            tok.d.val.f = (float) tok.d.val.d;
+            endptr++;
+        } else if (*endptr == 'l' || *endptr == 'L') {
+            tok.type = basic_type__long_double;
+            tok.d.val.ld = (long double) tok.d.val.d;
+            endptr++;
         }
+    }
+
+    if (endptr - str != len) {
+        error("Invalid numeric literal '%s'.", str);
         exit(1);
     }
 

@@ -1,7 +1,7 @@
 #ifndef COMPILE_H
 #define COMPILE_H
 
-#include "x86_64/instr.h"
+#include "x86_64/encoding.h"
 #include <lacc/ir.h>
 
 #include <stdio.h>

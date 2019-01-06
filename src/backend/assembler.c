@@ -4,7 +4,7 @@
 #endif
 #include "assembler.h"
 #include "compile.h"
-#include "x86_64/instr.h"
+#include "x86_64/encoding.h"
 #include <lacc/context.h>
 
 #include <assert.h>

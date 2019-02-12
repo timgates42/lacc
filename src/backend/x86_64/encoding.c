@@ -9,10 +9,8 @@
 
 #include <assert.h>
 
-#define PREFIX_SSE 0x0F
 #define PREFIX_OPERAND_SIZE 0x66
 
-#define is_64_bit(arg) ((arg).width >> 3)
 #define is_64_bit_reg(arg) (((arg) >= R8 && (arg) <= R15) \
     || ((arg) >= XMM8 && (arg) <= XMM15))
 
@@ -39,6 +37,7 @@
 #define regi(arg) (((arg) - 1) % 8)
 
 /* Hack to enable REX.W on certain SSE instructions. */
+#define is_general(op) (op <= INSTR_XOR)
 #define enable_rex_w(op) \
     (is_general(op) || op == INSTR_CVTTS2SI || op == INSTR_CVTSI2S)
 

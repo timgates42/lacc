@@ -1147,16 +1147,6 @@ static void store_op(
         }
     }
 
-    /* No way to mov 64 bit immediate to memory directly. */
-    /*if (opc == INSTR_MOV && optype == OPT_IMM && op.width == 8) {
-        assert(w == 8);
-        if (op.imm.d.qword == op.imm.d.dword) {
-            op.width = 4;
-        } else {
-            assert(0);
-        }
-    }*/
-
     switch (target.kind) {
     case DIRECT:
         assert(!is_array(target.type));

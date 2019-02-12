@@ -176,10 +176,6 @@ enum opcode {
     INSTR_FXCH = INSTR_FUCOMIP + 1      /* Swap ST(0) with ST(i). */
 };
 
-#define is_general(op) (op <= INSTR_XOR)
-#define is_sse(op) (op >= INSTR_ADDS && !is_x87(op))
-#define is_x87(op) (op >= INSTR_FADDP)
-
 enum prefix {
     PREFIX_NONE = 0x0,
     PREFIX_REP = 0xF3,

@@ -245,6 +245,11 @@ struct code {
     signed char len;
 };
 
+/* Convert abstract instruction to binary. */
 INTERNAL struct code encode(struct instruction instr);
+
+/* Lookup instruction mnemonic for textual assembly. */
+INTERNAL void get_mnemonic(struct instruction instr, char *buf);
+
 
 #endif

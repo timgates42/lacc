@@ -11,12 +11,10 @@
 
 #define PREFIX_OPERAND_SIZE 0x66
 
+#define reg3(arg) ((arg - 1) & 0x7)
 #define is_64_bit_reg(arg) (((arg) >= R8 && (arg) <= R15) \
     || ((arg) >= XMM8 && (arg) <= XMM15))
 
-/*
- * Determine if integer value can be encoded with certain width.
- */
 #define in_byte_range(arg) ((arg) >= -128 && (arg) <= 127)
 #define in_32bit_range(arg) ((arg) >= -2147483648 && (arg) <= 2147483647)
 
@@ -33,26 +31,28 @@
 #define X(arg) (is_64_bit_reg((arg).index) << 1)
 #define B(arg) is_64_bit_reg(arg)
 
-#define reg3(arg) ((arg - 1) & 0x7)
-#define regi(arg) (((arg) - 1) % 8)
-
 /* Hack to enable REX.W on certain SSE instructions. */
 #define is_general(op) (op <= INSTR_XOR)
 #define enable_rex_w(op) \
     (is_general(op) || op == INSTR_CVTTS2SI || op == INSTR_CVTSI2S)
 
 /*
- * Some additional information can be encoded in the operand byte:
+ * Some additional information can be encoded in the last opcode byte:
+ *
  *   w: Set to 1 if operand size should be full size (32 or 64),
- *      otherwise operand size is 1 byte.
- *   s: Set to 1 to sign extend immediate into operand size.
+ *      otherwise operand size is 1 byte. Normally least significant bit
+ *      of last opcode byte, unless OPX_REG is set, in which case it is
+ *      the 4th bit (after reg).
+ *
+ *   s: Set to 1 to sign extend immediate into operand size. Bit 2 of
+ *      last opcode byte.
+ *
+ *   d: Direction bit, reverse mem/reg operands. Bit 2 of last opcode
+ *      byte.
+ *
  */
 enum opextra {
     OPX_NONE = 0,
-    /*
-     * Operand size. Normally least significant bit of last opcode byte,
-     * unless OPX_REG is set, in which case it is 4th bit (after reg).
-     */
     OPX_W = 1,
     OPX_S = 2,
     OPX_SW = OPX_S | OPX_W,
@@ -283,6 +283,13 @@ static int encode_modrm_sib_disp(
     assert(!addr.sym);
     assert(addr.base || !addr.displacement);
 
+    /* Scale is 2 bits, representing 1, 2, 4 or 8. */
+    assert(addr.scale == 0
+        || addr.scale == 1
+        || addr.scale == 2
+        || addr.scale == 4
+        || addr.scale == 8);
+
     /* SP is used as sentinel for SIB, and R12 overlaps. */
     has_sib = addr.index
         || !addr.base || reg3(addr.base) == reg3(SP) || addr.scale > 1;
@@ -338,13 +345,6 @@ static int encode_address(
 {
     enum rel_type reloc;
 
-    /* Scale is 2 bits, representing 1, 2, 4 or 8. */
-    assert(addr.scale == 0
-        || addr.scale == 1
-        || addr.scale == 2
-        || addr.scale == 4
-        || addr.scale == 8);
-
     if (addr.sym) {
         c->val[c->len++] = ((reg & 0x7) << 3) | 0x5;
         if (addr.type == ADDR_GLOBAL_OFFSET) {
@@ -381,6 +381,16 @@ static int default_operand_size(enum opcode opc)
     }
 }
 
+static void encode_opcode(struct code *c, struct encoding enc)
+{
+    int i;
+
+    c->val[c->len++] = enc.opcode[0];
+    for (i = 1; enc.opcode[i] && i < 2; ++i) {
+        c->val[c->len++] = enc.opcode[i];
+    }
+}
+
 static void encode_reg_reg(
     struct code *c,
     struct encoding enc,
@@ -389,7 +399,6 @@ static void encode_reg_reg(
     enum reg a,
     enum reg b)
 {
-    int i;
     unsigned char rex;
 
     rex = REX | B(b);
@@ -398,24 +407,16 @@ static void encode_reg_reg(
         rex = rex | W(w);
     }
 
-    /* First operand could be implicit register. */
+    assert(!enc.openc[1].implicit);
     if (!enc.openc[0].implicit) {
         rex |= R(a);
     }
-
-    assert(!enc.openc[1].implicit);
 
     if (rex != REX) {
         c->val[c->len++] = rex;
     }
 
-    /* Opcode bytes. */
-    c->val[c->len++] = enc.opcode[0];
-    for (i = 1; enc.opcode[i] && i < 2; ++i) {
-        c->val[c->len++] = enc.opcode[i];
-    }
-
-    /* Specify full width in last opcode bit. */
+    encode_opcode(c, enc);
     if ((enc.opextra & OPX_W) == OPX_W) {
         if (enc.openc[0].implicit) {
             ws = w;
@@ -423,11 +424,10 @@ static void encode_reg_reg(
         c->val[c->len - 1] |= ws != 1;
     }
 
-    /* ModR/M register encoding. */
-    c->val[c->len++] = 0xC0 | enc.modrm | regi(b);
+    c->val[c->len++] = 0xC0 | enc.modrm | reg3(b);
     if (!enc.openc[0].implicit) {
         assert(!enc.modrm);
-        c->val[c->len - 1] |= regi(a) << 3;
+        c->val[c->len - 1] |= reg3(a) << 3;
     }
 }
 
@@ -439,7 +439,6 @@ static void encode_mem_reg(
     struct memory mem,
     enum reg b)
 {
-    int i;
     unsigned char rex;
 
     rex = REX | R(b) | X(mem.addr) | B(mem.addr.base);
@@ -452,11 +451,7 @@ static void encode_mem_reg(
         c->val[c->len++] = rex;
     }
 
-    /* Opcode bytes. */
-    c->val[c->len++] = enc.opcode[0];
-    for (i = 1; enc.opcode[i] && i < 2; ++i) {
-        c->val[c->len++] = enc.opcode[i];
-    }
+    encode_opcode(c, enc);
 
     /* Specify full width in last opcode bit. */
     if ((enc.opextra & OPX_W) == OPX_W) {
@@ -468,7 +463,7 @@ static void encode_mem_reg(
         c->val[c->len - 1] |= (d == 1) << 1;
     }
 
-    encode_address(c, regi(b), mem.addr, 0);
+    encode_address(c, reg3(b), mem.addr, 0);
 }
 
 static int encode_immediate(
@@ -531,22 +526,15 @@ static void encode_imm_reg(
     struct immediate a,
     enum reg b)
 {
-    int i, d;
+    int d;
     unsigned char rex;
 
     rex = REX | W(w) | B(b);
-
     if (rex != REX || ((b == SI || b == DI) && w == 1)) {
         c->val[c->len++] = rex;
     }
 
-    /* Opcode bytes. */
-    c->val[c->len++] = enc.opcode[0];
-    for (i = 1; enc.opcode[i] && i < 2; ++i) {
-        c->val[c->len++] = enc.opcode[i];
-    }
-
-    /* Specify operand width using bit of opcode. */
+    encode_opcode(c, enc);
     if ((enc.opextra & OPX_W) == OPX_W) {
         w = w != 1;
         if ((enc.opextra & OPX_REG) == OPX_REG) {
@@ -559,11 +547,10 @@ static void encode_imm_reg(
     if ((enc.opextra & OPX_REG) == OPX_REG) {
         assert(!enc.modrm);
         assert(!enc.openc[1].implicit);
-        c->val[c->len - 1] |= regi(b);
+        c->val[c->len - 1] |= reg3(b);
         d = 1;
     } else if (!enc.openc[1].implicit) {
-        /* Register is last part of ModR/M byte. */
-        c->val[c->len++] = 0xC0 | enc.modrm | regi(b);
+        c->val[c->len++] = 0xC0 | enc.modrm | reg3(b);
         d = 2;
     } else {
         d = 0;
@@ -580,9 +567,6 @@ static void encode_imm_reg(
     encode_immediate(c, a, d, enc.is_displacement_or_dword);
 }
 
-/*
- * Determine the number of bytes needed to encode immediate.
- */
 static int imm_encoding_width(
     struct immediate imm,
     int allow_sign_extend,
@@ -616,7 +600,7 @@ static void encode_imm_mem(
     struct immediate a,
     struct address b)
 {
-    int i, d, s;
+    int d, s;
     unsigned char rex;
 
     rex = REX | W(w) | X(b) | B(b.base);
@@ -624,13 +608,7 @@ static void encode_imm_mem(
         c->val[c->len++] = rex;
     }
 
-    /* Opcode bytes. */
-    c->val[c->len++] = enc.opcode[0];
-    for (i = 1; enc.opcode[i] && i < 2; ++i) {
-        c->val[c->len++] = enc.opcode[i];
-    }
-
-    /* Specify full width in last opcode bit. */
+    encode_opcode(c, enc);
     if ((enc.opextra & OPX_W) == OPX_W) {
         c->val[c->len - 1] |= w != 1;
     }
@@ -654,35 +632,23 @@ static void encode_imm_mem(
         d = 0;
     }
 
-    i = encode_immediate(c, a, d, enc.is_displacement_or_dword);
-    assert(i == w);
+    d = encode_immediate(c, a, d, enc.is_displacement_or_dword);
+    assert(d == w);
 }
 
 static void encode_none(struct code *c, struct encoding enc, int w)
 {
-    int i;
     unsigned char rex;
 
     rex = REX;
     if (enable_rex_w(enc.opc) && w != default_operand_size(enc.opc)) {
         rex = rex | W(w);
-    }
-/*
-    if (w != enc.openc[0].widths) {
-        rex = rex | W(w);
-    }
-*/
-    if (rex != REX) {
-        c->val[c->len++] = rex;
+        if (rex != REX) {
+            c->val[c->len++] = rex;
+        }
     }
 
-    /* Opcode bytes. */
-    c->val[c->len++] = enc.opcode[0];
-    for (i = 1; enc.opcode[i] && i < 2; ++i) {
-        c->val[c->len++] = enc.opcode[i];
-    }
-
-    /* Specify operand width using bit of opcode. */
+    encode_opcode(c, enc);
     if ((enc.opextra & OPX_W) == OPX_W) {
         c->val[c->len - 1] |= w != 1;
     }
@@ -695,7 +661,6 @@ static void encode_reg(
     enum reg r,
     enum tttn cc)
 {
-    int i;
     unsigned char rex;
 
     rex = REX | B(r);
@@ -707,13 +672,7 @@ static void encode_reg(
         c->val[c->len++] = rex;
     }
 
-    /* Opcode bytes. */
-    c->val[c->len++] = enc.opcode[0];
-    for (i = 1; enc.opcode[i] && i < 2; ++i) {
-        c->val[c->len++] = enc.opcode[i];
-    }
-
-    /* Specify operand width using bit of opcode. */
+    encode_opcode(c, enc);
     if ((enc.opextra & OPX_W) == OPX_W) {
         w = w != 1;
         if ((enc.opextra & OPX_REG) == OPX_REG) {
@@ -730,10 +689,9 @@ static void encode_reg(
 
     if ((enc.opextra & OPX_REG) == OPX_REG) {
         assert(!enc.modrm);
-        c->val[c->len - 1] |= regi(r);
+        c->val[c->len - 1] |= reg3(r);
     } else {
-        /* Register is last part of ModR/M byte. */
-        c->val[c->len++] = 0xC0 | enc.modrm | regi(r);
+        c->val[c->len++] = 0xC0 | enc.modrm | reg3(r);
     }
 }
 
@@ -743,7 +701,6 @@ static void encode_mem(
     int w,
     struct address addr)
 {
-    int i;
     unsigned char rex;
 
     rex = REX | X(addr) | B(addr.base);
@@ -755,13 +712,7 @@ static void encode_mem(
         c->val[c->len++] = rex;
     }
 
-    /* Opcode bytes. */
-    c->val[c->len++] = enc.opcode[0];
-    for (i = 1; enc.opcode[i] && i < 2; ++i) {
-        c->val[c->len++] = enc.opcode[i];
-    }
-
-    /* Specify full width in last opcode bit. */
+    encode_opcode(c, enc);
     if ((enc.opextra & OPX_W) == OPX_W) {
         c->val[c->len - 1] |= w != 1;
     }
@@ -776,7 +727,6 @@ static void encode_imm(
     struct immediate imm,
     enum tttn cc)
 {
-    int i;
     unsigned char rex;
 
     rex = REX | W(w);
@@ -784,12 +734,7 @@ static void encode_imm(
         c->val[c->len++] = rex;
     }
 
-    /* Opcode bytes. */
-    c->val[c->len++] = enc.opcode[0];
-    for (i = 1; enc.opcode[i] && i < 2; ++i) {
-        c->val[c->len++] = enc.opcode[i];
-    }
-
+    encode_opcode(c, enc);
     if ((enc.opextra & OPX_tttn) == OPX_tttn) {
         assert(enc.opextra == OPX_tttn);
         c->val[c->len - 1] |= cc;
@@ -820,66 +765,6 @@ static int operand_size(struct instruction instr)
     }
 
     return 4;
-}
-
-static struct code encode_instruction(
-    struct encoding enc,
-    struct instruction instr)
-{
-    struct code c = {{0}};
-    int i, ws, w;
-
-    /* First we do legacy prefix bytes. */
-    for (i = 0; i < 4 && enc.prefix[i]; ++i) {
-        c.val[c.len++] = enc.prefix[i];
-    }
-
-    if (instr.prefix) {
-        c.val[c.len++] = instr.prefix;
-    }
-
-    w = operand_size(instr);
-    if (w == 2) {
-        c.val[c.len++] = PREFIX_OPERAND_SIZE;
-    }
-
-    switch (instr.optype) {
-    default: assert(0);
-    case OPT_NONE:
-        encode_none(&c, enc, w);
-        break;
-    case OPT_REG:
-        encode_reg(&c, enc, w, instr.source.reg.r, instr.cc);
-        break;
-    case OPT_MEM:
-        encode_mem(&c, enc, w, instr.source.mem.addr);
-        break;
-    case OPT_IMM:
-        encode_imm(&c, enc, w, instr.source.imm, instr.cc);
-        break;
-    case OPT_REG_REG:
-        ws = instr.source.width;
-        if (enc.reverse) {
-            encode_reg_reg(&c, enc, ws, w, instr.dest.reg.r, instr.source.reg.r);
-        } else {
-            encode_reg_reg(&c, enc, ws, w, instr.source.reg.r, instr.dest.reg.r);
-        }
-        break;
-    case OPT_MEM_REG:
-        encode_mem_reg(&c, enc, w, 1, instr.source.mem, instr.dest.reg.r);
-        break;
-    case OPT_REG_MEM:
-        encode_mem_reg(&c, enc, w, 0, instr.dest.mem, instr.source.reg.r);
-        break;
-    case OPT_IMM_REG:
-        encode_imm_reg(&c, enc, w, instr.source.imm, instr.dest.reg.r);
-        break;
-    case OPT_IMM_MEM:
-        encode_imm_mem(&c, enc, w, instr.source.imm, instr.dest.mem.addr);
-        break;
-    }
-
-    return c;
 }
 
 static int is_32_bit_imm(struct immediate imm)
@@ -962,7 +847,7 @@ static int is_single_width(unsigned int w)
     return w == 1 || w == 2 || w == 4 || w == 8 || w == 16;
 }
 
-INTERNAL void write_mnemonic(struct instruction instr, char *buf)
+INTERNAL void get_mnemonic(struct instruction instr, char *buf)
 {
     const char *ptr;
     unsigned int w0, w1;
@@ -1033,15 +918,59 @@ INTERNAL void write_mnemonic(struct instruction instr, char *buf)
 
 INTERNAL struct code encode(struct instruction instr)
 {
+    struct code c = {{0}};
     struct encoding enc;
-    char mnemonic[11] = {0};
+    int i, ws, w;
 
-    /* 14 words per encoding.. -> 9 words with bitfield */
-    /*printf("size: %lu, %lu words\n", sizeof(struct encoding), sizeof(struct encoding)/ 4);*/
     enc = find_encoding(instr);
+    for (i = 0; i < 4 && enc.prefix[i]; ++i) {
+        c.val[c.len++] = enc.prefix[i];
+    }
 
-    write_mnemonic(instr, mnemonic);
-    /*printf("%s %d, %d\n", mnemonic, instr.source.width, instr.dest.width);*/
+    if (instr.prefix) {
+        c.val[c.len++] = instr.prefix;
+    }
 
-    return encode_instruction(enc, instr);
+    w = operand_size(instr);
+    if (w == 2) {
+        c.val[c.len++] = PREFIX_OPERAND_SIZE;
+    }
+
+    switch (instr.optype) {
+    default: assert(0);
+    case OPT_NONE:
+        encode_none(&c, enc, w);
+        break;
+    case OPT_REG:
+        encode_reg(&c, enc, w, instr.source.reg.r, instr.cc);
+        break;
+    case OPT_MEM:
+        encode_mem(&c, enc, w, instr.source.mem.addr);
+        break;
+    case OPT_IMM:
+        encode_imm(&c, enc, w, instr.source.imm, instr.cc);
+        break;
+    case OPT_REG_REG:
+        ws = instr.source.width;
+        if (enc.reverse) {
+            encode_reg_reg(&c, enc, ws, w, instr.dest.reg.r, instr.source.reg.r);
+        } else {
+            encode_reg_reg(&c, enc, ws, w, instr.source.reg.r, instr.dest.reg.r);
+        }
+        break;
+    case OPT_MEM_REG:
+        encode_mem_reg(&c, enc, w, 1, instr.source.mem, instr.dest.reg.r);
+        break;
+    case OPT_REG_MEM:
+        encode_mem_reg(&c, enc, w, 0, instr.dest.mem, instr.source.reg.r);
+        break;
+    case OPT_IMM_REG:
+        encode_imm_reg(&c, enc, w, instr.source.imm, instr.dest.reg.r);
+        break;
+    case OPT_IMM_MEM:
+        encode_imm_mem(&c, enc, w, instr.source.imm, instr.dest.mem.addr);
+        break;
+    }
+
+    return c;
 }

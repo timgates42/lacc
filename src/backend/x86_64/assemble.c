@@ -259,8 +259,6 @@ INTERNAL int asm_symbol(const struct symbol *sym)
     return 0;
 }
 
-INTERNAL void write_mnemonic(struct instruction instr, char *buf);
-
 INTERNAL int asm_text(struct instruction instr)
 {
     char buf[11] = {0};
@@ -272,7 +270,7 @@ INTERNAL int asm_text(struct instruction instr)
     default: break;
     }
 
-    write_mnemonic(instr, buf);
+    get_mnemonic(instr, buf);
     out("%s", buf);
     switch (instr.optype) {
     case OPT_REG:

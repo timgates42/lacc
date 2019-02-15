@@ -873,11 +873,18 @@ INTERNAL int mnemonic_match_operands(
     union operand *dest)
 {
     int i;
+    int ws, wd;
     struct encoding *enc;
+    struct instruction instr = {0};
     unsigned int w0, w1;
 
+    /*printf("Looking for %d: %d, %d\n", optype, source->width, dest->width);*/
+
+    /* Try to construct best match for each entry in table. */
     for (i = 0; i < sizeof(encodings) / sizeof(encodings[0]); ++i) {
         enc = &encodings[i];
+        if (!enc->mnemonic)
+            break;
 
         /* todo: match better with removed suffix. */
         if (strncmp(mnemonic, enc->mnemonic, length))
@@ -888,13 +895,15 @@ INTERNAL int mnemonic_match_operands(
 
         w0 = enc->openc[0].widths;
         w1 = enc->openc[1].widths;
+        ws = source->width;
+        wd = dest->width;
 
-        if ((source->width && (source->width & w0) == 0)
-            || (dest->width && (dest->width & w1) == 0))
+        if ((ws && w0 && (ws & w0) == 0)
+            || (wd && w1 && (wd & w1) == 0))
             continue;
 
-        if (is_single_width(w0)) source->width = w0;
-        if (is_single_width(w1)) dest->width = w1;
+        if (is_single_width(w0)) ws = w0;
+        if (is_single_width(w1)) wd = w1;
 
         switch (optype) {
         case OPT_NONE:
@@ -909,19 +918,31 @@ INTERNAL int mnemonic_match_operands(
         case OPT_IMM_REG:
         case OPT_IMM_MEM:
             /* todo: Magic to fix operand width */
-            if (!source->width) {
-                if (!dest->width) {
+            if (!ws) {
+                if (!wd) {
                     assert(0);
                 } else {
-                    source->width = dest->width;
+                    ws = wd;
                 }
-            } else if (!dest->width) {
-                dest->width = source->width;
+            } else if (!wd) {
+                wd = ws;
             }
             break;
         }
 
-        return enc->opc;
+        instr.optype = optype;
+        instr.opcode = enc->opc;
+        instr.source = *source;
+        instr.source.width = ws;
+        instr.dest = *dest;
+        instr.dest.width = wd;
+        if (match_instruction_encoding(&instr, enc)) {
+            source->width = ws;
+            dest->width = wd;
+            return enc->opc;
+        } else {
+            printf("Skipping!\n");
+        }
     }
 
     return -1;

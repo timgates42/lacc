@@ -838,6 +838,8 @@ static struct encoding find_encoding(struct instruction instr)
         i++;
     } while (encodings[i].opc == instr.opcode);
 
+    printf("%s: %d, %d (%d, %d)\n", encodings[i-1].mnemonic, instr.opcode, instr.optype, instr.source.width, instr.dest.width);
+
     error("Unsupported instruction.");
     exit(1);
 }
@@ -845,6 +847,84 @@ static struct encoding find_encoding(struct instruction instr)
 static int is_single_width(unsigned int w)
 {
     return w == 1 || w == 2 || w == 4 || w == 8 || w == 16;
+}
+
+/*
+ * Lookup best matching instruction from textual assembly mnemonic.
+ *
+ * Also consider widths of operands if known, for example in case of
+ * register operands.
+ *
+ *   add %eax, %ebx
+ *
+ * In cases like these, we known that operands must be 4 byte.
+ *
+ * Cases that do not have unambiguous operand sizes are resolved by this
+ * method. For example setting width of the immediate operand to 2 here:
+ *
+ *   add $4, %ax
+ *
+ */
+INTERNAL int mnemonic_match_operands(
+    const char *mnemonic,
+    size_t length,
+    enum instr_optype optype,
+    union operand *source,
+    union operand *dest)
+{
+    int i;
+    struct encoding *enc;
+    unsigned int w0, w1;
+
+    for (i = 0; i < sizeof(encodings) / sizeof(encodings[0]); ++i) {
+        enc = &encodings[i];
+
+        /* todo: match better with removed suffix. */
+        if (strncmp(mnemonic, enc->mnemonic, length))
+            continue;
+
+        if ((enc->optype & optype) != optype)
+            continue;
+
+        w0 = enc->openc[0].widths;
+        w1 = enc->openc[1].widths;
+
+        if ((source->width && (source->width & w0) == 0)
+            || (dest->width && (dest->width & w1) == 0))
+            continue;
+
+        if (is_single_width(w0)) source->width = w0;
+        if (is_single_width(w1)) dest->width = w1;
+
+        switch (optype) {
+        case OPT_NONE:
+            break;
+        case OPT_REG:
+        case OPT_MEM:
+        case OPT_IMM:
+            break;
+        case OPT_REG_REG:
+        case OPT_REG_MEM:
+        case OPT_MEM_REG:
+        case OPT_IMM_REG:
+        case OPT_IMM_MEM:
+            /* todo: Magic to fix operand width */
+            if (!source->width) {
+                if (!dest->width) {
+                    assert(0);
+                } else {
+                    source->width = dest->width;
+                }
+            } else if (!dest->width) {
+                dest->width = source->width;
+            }
+            break;
+        }
+
+        return enc->opc;
+    }
+
+    return -1;
 }
 
 INTERNAL void get_mnemonic(struct instruction instr, char *buf)

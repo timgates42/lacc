@@ -183,7 +183,7 @@ static enum reg parse_asm_int_reg(const char *str, size_t len, int *w)
     exit(1);
 }
 
-static struct registr parse__asm__register(const char *str, size_t len, int *w)
+static struct registr parse__asm__register(const char *str, size_t len)
 {
     long d;
     char *endptr;
@@ -192,7 +192,7 @@ static struct registr parse__asm__register(const char *str, size_t len, int *w)
     if (!strncmp("xmm", str, 3)) {
         d = strtol(str + 3, &endptr, 10);
         if (endptr == str + len && d >= 0 && d <= 15) {
-            reg.width = 16;
+            reg.width = 0; /* either 4 or 8 */
             reg.r = XMM0 + d;
         } else {
             error("Invalid SSE register.");
@@ -202,13 +202,11 @@ static struct registr parse__asm__register(const char *str, size_t len, int *w)
         reg.r = parse_asm_int_reg(str, len, &reg.width);
     }
 
-    *w = reg.width;
     return reg;
 }
 
 INTERNAL enum reg get_clobbered_register(String clobber)
 {
-    int w;
     const char *str;
     size_t len;
     struct registr reg;
@@ -220,7 +218,7 @@ INTERNAL enum reg get_clobbered_register(String clobber)
         len--;
     }
 
-    reg = parse__asm__register(str, len, &w);
+    reg = parse__asm__register(str, len);
     return reg.r;
 }
 
@@ -254,7 +252,7 @@ static int parse_asm_address(
         }
     } else if (t.type == ASM_OP) {
         asmop = array_get(&operands, t.val);
-        opt = allocation(asmop.variable, &op, &w);
+        opt = allocation(asmop.variable, &op);
         if (opt != OPT_REG) {
             error("Operand %ld must be register allocated.", t.val);
             exit(1);
@@ -286,8 +284,7 @@ static int parse_asm_address(
 static enum instr_optype parse__asm__operand(
     const char *line,
     const char **endptr,
-    union operand *op,
-    int *w)
+    union operand *op)
 {
     long l;
     enum instr_optype opt;
@@ -310,26 +307,23 @@ static enum instr_optype parse__asm__operand(
             error("Invalid memory address operand.");
             exit(1);
         }
-        op->mem.width = *w;
+        /*op->mem.width = *w;*/
         break;
     case ASM_CONSTANT:
         assert(*t.str == '$');
         l = strtol(t.str + 1, NULL, 0);
-        if (*w == 0) {
-            *w = 4;
-        }
         op->imm.type = IMM_INT;
         op->imm.d.qword = l;
-        op->imm.width = *w;
+        /*op->imm.width = *w;*/
         opt = OPT_IMM;
         break;
     case ASM_REG:
-        op->reg = parse__asm__register(t.str, t.len, w);
+        op->reg = parse__asm__register(t.str, t.len);
         opt = OPT_REG;
         break;
     case ASM_OP:
         asmop = array_get(&operands, t.val);
-        opt = allocation(asmop.variable, op, w);
+        opt = allocation(asmop.variable, op);
         break;
     case ASM_LABEL:
         target = array_get(&targets, t.val);
@@ -337,10 +331,7 @@ static enum instr_optype parse__asm__operand(
         op->imm.type = IMM_ADDR;
         op->imm.d.addr.type = ADDR_NORMAL;
         op->imm.d.addr.sym = target->label;
-        if (*w == 0) {
-            *w = 8;
-        }
-        op->imm.width = *w;
+        op->imm.width = 8;
         break;
     default:
         error("Invalid assembly operand %s.", line);
@@ -421,84 +412,48 @@ static const struct instr_template *find_instruction(
     return NULL;
 }
 
-static enum instr_optype combine_opts(
-    const struct instr_template *tpl,
-    enum instr_optype opt1,
-    enum instr_optype opt2)
-{
-    enum instr_optype opt = OPT_NONE;
-
-    assert(opt1 != OPT_NONE);
-    assert(opt2 != OPT_NONE);
-    if (opt1 == OPT_REG && opt2 == OPT_REG) {
-        opt = OPT_REG_REG;
-    } else if (opt1 == OPT_REG && opt2 == OPT_MEM) {
-        opt = OPT_REG_MEM;
-    } else if (opt1 == OPT_MEM && opt2 == OPT_REG) {
-        opt = OPT_MEM_REG;
-    } else if (opt1 == OPT_IMM && opt2 == OPT_REG) {
-        opt = OPT_IMM_REG;
-    } else if (opt1 == OPT_IMM && opt2 == OPT_MEM) {
-        opt = OPT_IMM_MEM;
-    }
-
-    if (opt == OPT_NONE || (tpl->optypes & opt) == 0) {
-        error("Invalid operands to %s instruction, %d. template: %d",
-            tpl->mnemonic, opt, tpl->optypes);
-        exit(1);
-    }
-
-    return opt;
-}
-
 static struct instruction parse__asm__instruction(
     const char *line,
     const char **endptr)
 {
     struct instruction instr = {0};
-    const struct instr_template *tpl;
     enum instr_optype opt1, opt2;
     struct asm_token t;
-    int ws, wd;
 
     t = asmtok(line, &line);
-    tpl = find_instruction(t, &ws, &wd);
-    if (!tpl) {
-        error("Unrecognized instruction %s", t.str);
-        exit(1);
-    }
+    skip_whitespace(line, &line);
 
-    instr.opcode = tpl->opcode;
-    instr.optype = OPT_NONE;
-    switch (tpl->opcount) {
-    case 2:
-        opt1 = parse__asm__operand(line, &line, &instr.source, &ws);
-        t = asmtok(line, &line);
-        if (t.type != ',') {
-            error("Unexpected %s after first operand.", t.str);
-            exit(1);
-        }
-        opt2 = parse__asm__operand(line, &line, &instr.dest, &wd);
-        if (!ws) {
-            if (!wd) {
-                error("Unknown address size.");
+    if (*line == '\n') {
+        instr.optype = OPT_NONE;
+    } else {
+        instr.optype = parse__asm__operand(line, &line, &instr.source);
+        skip_whitespace(line, &line);
+        if (*line == ',') {
+            opt1 = instr.optype;
+            opt2 = parse__asm__operand(line + 1, &line, &instr.dest);
+            if (opt1 == OPT_REG && opt2 == OPT_REG) {
+                instr.optype = OPT_REG_REG;
+            } else if (opt1 == OPT_REG && opt2 == OPT_MEM) {
+                instr.optype = OPT_REG_MEM;
+            } else if (opt1 == OPT_MEM && opt2 == OPT_REG) {
+                instr.optype = OPT_MEM_REG;
+            } else if (opt1 == OPT_IMM && opt2 == OPT_REG) {
+                instr.optype = OPT_IMM_REG;
+            } else if (opt1 == OPT_IMM && opt2 == OPT_MEM) {
+                instr.optype = OPT_IMM_MEM;
+            } else {
+                error("Invalid combination of operands.");
                 exit(1);
             }
-            instr.source.width = wd;
-        } else if (!wd) {
-            instr.dest.width = ws;
         }
-        instr.optype = combine_opts(tpl, opt1, opt2);
-        break;
-    case 1:
-        instr.optype = parse__asm__operand(line, &line, &instr.source, &ws);
-        if (!ws) {
-            error("Unknown address size of single operand.");
-            exit(1);
-        }
-        break;
-    default:
-        assert(0);
+    }
+
+    instr.opcode = mnemonic_match_operands(t.str, t.len,
+        instr.optype, &instr.source, &instr.dest);
+
+    if (instr.opcode == -1) {
+        error("Unrecognized instruction %s", t.str);
+        exit(1);
     }
 
     *endptr = line;

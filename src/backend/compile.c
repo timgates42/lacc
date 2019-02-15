@@ -334,31 +334,28 @@ static struct immediate constant(long n, int w)
     return imm;
 }
 
-INTERNAL enum instr_optype allocation(struct var var, union operand *op, int *w)
+INTERNAL enum instr_optype allocation(struct var var, union operand *op)
 {
     enum reg ax;
     struct var tmp;
 
     if (is_register_allocated(var)) {
-        if (*w == 0) *w = size_of(var.type);
         op->reg.r = allocated_register(var);
-        op->reg.width = *w;
+        op->reg.width = size_of(var.type);
         return OPT_REG;
     }
 
     switch (var.kind) {
     default: assert(0);
     case DIRECT:
-        if (*w == 0) *w = size_of(var.type);
-        op->mem = location_of(var, *w);
+        op->mem = location_of(var, size_of(var.type));
         break;
     case DEREF:
         tmp = var_direct(var.symbol);
         assert(is_register_allocated(tmp));
-        if (*w == 0) *w = size_of(tmp.type);
         ax = allocated_register(tmp);
         op->mem = location(address(
-            displacement_from_offset(var.offset), ax, 0, 0), *w);
+            displacement_from_offset(var.offset), ax, 0, 0), size_of(tmp.type));
         break;
     }
 

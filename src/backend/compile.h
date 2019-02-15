@@ -28,9 +28,6 @@ INTERNAL void flush(void);
 /* Free resources after all input objects have been processed. */
 INTERNAL void finalize(void);
 
-INTERNAL enum instr_optype allocation(
-	struct var var,
-	union operand *op,
-	int *w);
+INTERNAL enum instr_optype allocation(struct var var, union operand *op);
 
 #endif

@@ -842,8 +842,6 @@ static struct encoding find_encoding(struct instruction instr)
         i++;
     } while (encodings[i].opc == instr.opcode);
 
-    printf("%s: %d, %d (%d, %d)\n", encodings[i-1].mnemonic.str, instr.opcode, instr.optype, instr.source.width, instr.dest.width);
-
     error("Unsupported instruction.");
     exit(1);
 }
@@ -861,12 +859,11 @@ static int is_single_width(unsigned int w)
  *
  *   add %eax, %ebx
  *
- * In cases like these, we known that operands must be 4 byte.
- *
- * Cases that do not have unambiguous operand sizes are resolved by this
- * method. For example setting width of the immediate operand to 2 here:
+ * Cases that do not have unambiguous operand sizes are resolved by
+ * copying the known operand width, or looking at instruction suffix.
  *
  *   add $4, %ax
+ *   addw $4, (%ebp)
  *
  */
 INTERNAL int mnemonic_match_operands(
@@ -882,8 +879,6 @@ INTERNAL int mnemonic_match_operands(
     struct encoding *enc;
     struct instruction instr = {0};
     unsigned int w0, w1;
-
-    /*printf("Looking for (%d) %d, %d // %s\n", optype, source->width, dest->width, mnemonic);*/
 
     assert(length > 0);
     for (i = 0; i < sizeof(encodings) / sizeof(encodings[0]); ++i) {
@@ -905,6 +900,15 @@ INTERNAL int mnemonic_match_operands(
             ws = w0;
         }
 
+        /* Disregard encoding if widths do not fit. */
+        if ((ws && w0 && (ws & w0) == 0) || (wd && w1 && (wd & w1) == 0))
+            continue;
+
+        /* Coerce operand widths if there is only one choice. */
+        if (is_single_width(w0)) ws = w0;
+        if (is_single_width(w1)) wd = w1;
+
+        /* Encoding mnemonic can lack integer width suffix. */
         mlen = strlen(enc->mnemonic.str);
         if (length != mlen || strncmp(mnemonic, enc->mnemonic.str, length)) {
             if (enc->mnemonic.suffix) switch (mnemonic[length - 1]) {
@@ -916,20 +920,12 @@ INTERNAL int mnemonic_match_operands(
             } else continue;
 
             if (mlen == length - 1 && !strncmp(mnemonic, enc->mnemonic.str, length - 1)) {
-                /* Match instruction with suffix */
-                /*printf("Found with suffix %d\n", sfx);*/
+                /* Match found. */
             } else {
                 sfx = 0;
                 continue;
             }
         }
-
-        if ((ws && w0 && (ws & w0) == 0)
-            || (wd && w1 && (wd & w1) == 0))
-            continue;
-
-        if (is_single_width(w0)) ws = w0;
-        if (is_single_width(w1)) wd = w1;
 
         switch (optype) {
         case OPT_NONE:

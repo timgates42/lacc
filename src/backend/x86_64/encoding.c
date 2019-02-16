@@ -78,7 +78,11 @@ enum implicit {
 
 static struct encoding {
     enum opcode opc;
-    const char *mnemonic;
+
+    struct {
+        const char *str;
+        unsigned int suffix : 1;
+    } mnemonic;
 
     /*
      * Prefixes are separated into four groups, and there can be only
@@ -121,154 +125,154 @@ static struct encoding {
      */
     unsigned int is_displacement_or_dword : 1;
 } encodings[] = {
-    {INSTR_ADD, "add", {0}, {0x00}, OPX_DW, 0x00, OPT_REG_REG | OPT_MEM_REG | OPT_REG_MEM},
-    {INSTR_ADD, "add", {0}, {0x80}, OPX_SW, 0x00, OPT_IMM_REG | OPT_IMM_MEM, {0}, 0, 1},
+    {INSTR_ADD, {"add", 1}, {0}, {0x00}, OPX_DW, 0x00, OPT_REG_REG | OPT_MEM_REG | OPT_REG_MEM},
+    {INSTR_ADD, {"add", 1}, {0}, {0x80}, OPX_SW, 0x00, OPT_IMM_REG | OPT_IMM_MEM, {0}, 0, 1},
 
-    {INSTR_AND, "and", {0}, {0x20}, OPX_DW, 0x00, OPT_REG_REG | OPT_MEM_REG | OPT_REG_MEM},
-    {INSTR_AND, "and", {0}, {0x24}, OPX_W, 0x00, OPT_IMM_REG, {{0}, {0, IMPL_AX}}, 0, 1},
-    {INSTR_AND, "and", {0}, {0x80}, OPX_SW, 0x20, OPT_IMM_REG | OPT_IMM_MEM, {0}, 0, 1},
+    {INSTR_AND, {"and"}, {0}, {0x20}, OPX_DW, 0x00, OPT_REG_REG | OPT_MEM_REG | OPT_REG_MEM},
+    {INSTR_AND, {"and"}, {0}, {0x24}, OPX_W, 0x00, OPT_IMM_REG, {{0}, {0, IMPL_AX}}, 0, 1},
+    {INSTR_AND, {"and"}, {0}, {0x80}, OPX_SW, 0x20, OPT_IMM_REG | OPT_IMM_MEM, {0}, 0, 1},
 
-    {INSTR_CALL, "call", {0}, {0xE8}, OPX_NONE, 0x00, OPT_IMM, {8}},
-    {INSTR_CALL, "call", {0}, {0xFF}, OPX_NONE, 0x10, OPT_REG | OPT_MEM, {8}},
+    {INSTR_CALL, {"call"}, {0}, {0xE8}, OPX_NONE, 0x00, OPT_IMM, {8}},
+    {INSTR_CALL, {"call"}, {0}, {0xFF}, OPX_NONE, 0x10, OPT_REG | OPT_MEM, {8}},
 
-    {INSTR_CMP, "cmp", {0}, {0x38}, OPX_DW, 0x00, OPT_REG_REG | OPT_REG_MEM | OPT_MEM_REG},
-    {INSTR_CMP, "cmp", {0}, {0x3C}, OPX_W, 0x00, OPT_IMM_REG, {{1 | 2 | 4}, {1 | 2 | 4, IMPL_AX}}},
-    {INSTR_CMP, "cmp", {0}, {0x80}, OPX_SW, 0x38, OPT_IMM_REG | OPT_IMM_MEM},
+    {INSTR_CMP, {"cmp"}, {0}, {0x38}, OPX_DW, 0x00, OPT_REG_REG | OPT_REG_MEM | OPT_MEM_REG},
+    {INSTR_CMP, {"cmp"}, {0}, {0x3C}, OPX_W, 0x00, OPT_IMM_REG, {{1 | 2 | 4}, {1 | 2 | 4, IMPL_AX}}},
+    {INSTR_CMP, {"cmp"}, {0}, {0x80}, OPX_SW, 0x38, OPT_IMM_REG | OPT_IMM_MEM},
 
-    {INSTR_Cxy, "cdq", {0}, {0x99}, OPX_NONE, 0x00, OPT_NONE, {4}},
-    {INSTR_Cxy, "cqo", {0}, {0x99}, OPX_NONE, 0x00, OPT_NONE, {8}},
+    {INSTR_Cxy, {"cdq"}, {0}, {0x99}, OPX_NONE, 0x00, OPT_NONE, {4}},
+    {INSTR_Cxy, {"cqo"}, {0}, {0x99}, OPX_NONE, 0x00, OPT_NONE, {8}},
 
-    {INSTR_DIV, "div", {0}, {0xF6}, OPX_W, 0x30, OPT_REG | OPT_MEM},
+    {INSTR_DIV, {"div"}, {0}, {0xF6}, OPX_W, 0x30, OPT_REG | OPT_MEM},
 
-    {INSTR_IDIV, "idiv", {0}, {0xF6}, OPX_W, 0x38, OPT_REG | OPT_MEM},
+    {INSTR_IDIV, {"idiv"}, {0}, {0xF6}, OPX_W, 0x38, OPT_REG | OPT_MEM},
 
-    {INSTR_Jcc, "j", {0}, {0x0F, 0x80}, OPX_tttn, 0x00, OPT_IMM, {8}, 0, 1},
+    {INSTR_Jcc, {"j"}, {0}, {0x0F, 0x80}, OPX_tttn, 0x00, OPT_IMM, {8}, 0, 1},
 
-    {INSTR_JMP, "jmp", {0}, {0xE9}, OPX_S, 0x00, OPT_IMM, {8}, 0, 1},
+    {INSTR_JMP, {"jmp"}, {0}, {0xE9}, OPX_S, 0x00, OPT_IMM, {8}, 0, 1},
 
-    {INSTR_LEA, "lea", {0}, {0x8D}, OPX_NONE, 0x00, OPT_MEM_REG, {{8}, {8}}},
+    {INSTR_LEA, {"lea", 1}, {0}, {0x8D}, OPX_NONE, 0x00, OPT_MEM_REG, {{8}, {8}}},
 
-    {INSTR_LEAVE, "leave", {0}, {0xC9}, OPX_NONE, 0x00, OPT_NONE},
+    {INSTR_LEAVE, {"leave"}, {0}, {0xC9}, OPX_NONE, 0x00, OPT_NONE},
 
-    {INSTR_MOV, "mov", {0}, {0x88}, OPX_DW, 0x00, OPT_REG_REG | OPT_MEM_REG | OPT_REG_MEM},
-    {INSTR_MOV, "mov", {0}, {0xB8}, OPX_WREG, 0x00, OPT_IMM_REG, {{1 | 2 | 4}, {1 | 2 | 4}}},
-    {INSTR_MOV, "mov", {0}, {0xC6}, OPX_W, 0x00, OPT_IMM_REG, {0}, 0, 1},
-    {INSTR_MOV, "movq", {0}, {0xB8}, OPX_WREG, 0x00, OPT_IMM_REG, {{8}, {8}}},
-    {INSTR_MOV, "mov", {0}, {0xC6}, OPX_W, 0x00, OPT_IMM_MEM, {0}, 0, 1},
+    {INSTR_MOV, {"mov", 1}, {0}, {0x88}, OPX_DW, 0x00, OPT_REG_REG | OPT_MEM_REG | OPT_REG_MEM},
+    {INSTR_MOV, {"mov", 1}, {0}, {0xB8}, OPX_WREG, 0x00, OPT_IMM_REG, {{1 | 2 | 4}, {1 | 2 | 4}}},
+    {INSTR_MOV, {"mov", 1}, {0}, {0xC6}, OPX_W, 0x00, OPT_IMM_REG, {0}, 0, 1},
+    {INSTR_MOV, {"movq"}, {0}, {0xB8}, OPX_WREG, 0x00, OPT_IMM_REG, {{8}, {8}}},
+    {INSTR_MOV, {"mov", 1}, {0}, {0xC6}, OPX_W, 0x00, OPT_IMM_MEM, {0}, 0, 1},
 
-    {INSTR_MOV_STR, "movs", {0}, {0xA4}, OPX_W},
+    {INSTR_MOV_STR, {"movs"}, {0}, {0xA4}, OPX_W},
 
-    {INSTR_MOVSX, "movslq", {0}, {0x63}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{4}, {8}}, 1},
-    {INSTR_MOVSX, "movs", {0}, {0x0F, 0xBE}, OPX_W, 0x00, OPT_REG_REG | OPT_MEM_REG, {{1 | 2}, {4 | 8}}, 1},
+    {INSTR_MOVSX, {"movslq"}, {0}, {0x63}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{4}, {8}}, 1},
+    {INSTR_MOVSX, {"movs"}, {0}, {0x0F, 0xBE}, OPX_W, 0x00, OPT_REG_REG | OPT_MEM_REG, {{1 | 2}, {4 | 8}}, 1},
 
-    {INSTR_MOVZX, "movzlq", {0}, {0x0F, 0xB7}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{4}, {8}}, 1},
-    {INSTR_MOVZX, "movz", {0}, {0x0F, 0xB6}, OPX_W, 0x00, OPT_REG_REG | OPT_MEM_REG, {{1 | 2}, {4 | 8}}, 1},
+    {INSTR_MOVZX, {"movzlq"}, {0}, {0x0F, 0xB7}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{4}, {8}}, 1},
+    {INSTR_MOVZX, {"movz"}, {0}, {0x0F, 0xB6}, OPX_W, 0x00, OPT_REG_REG | OPT_MEM_REG, {{1 | 2}, {4 | 8}}, 1},
 
-    {INSTR_MUL, "mul", {0}, {0xF6}, OPX_W, 0x20, OPT_REG | OPT_MEM},
+    {INSTR_MUL, {"mul"}, {0}, {0xF6}, OPX_W, 0x20, OPT_REG | OPT_MEM},
 
-    {INSTR_NOT, "not", {0}, {0xF6}, OPX_W, 0x10, OPT_REG | OPT_MEM},
+    {INSTR_NOT, {"not"}, {0}, {0xF6}, OPX_W, 0x10, OPT_REG | OPT_MEM},
 
-    {INSTR_OR, "or", {0}, {0x08}, OPX_DW, 0x00, OPT_REG_REG | OPT_MEM_REG | OPT_REG_MEM},
-    {INSTR_OR, "or", {0}, {0x80}, OPX_SW, 0x08, OPT_IMM_REG | OPT_IMM_MEM, {0}, 0, 1},
+    {INSTR_OR, {"or"}, {0}, {0x08}, OPX_DW, 0x00, OPT_REG_REG | OPT_MEM_REG | OPT_REG_MEM},
+    {INSTR_OR, {"or"}, {0}, {0x80}, OPX_SW, 0x08, OPT_IMM_REG | OPT_IMM_MEM, {0}, 0, 1},
 
-    {INSTR_POP, "pop", {0}, {0x58}, OPX_REG, 0x00, OPT_REG, {8}},
+    {INSTR_POP, {"pop"}, {0}, {0x58}, OPX_REG, 0x00, OPT_REG, {8}},
 
-    {INSTR_PUSH, "push", {0}, {0x50}, OPX_REG, 0x00, OPT_REG, {8}},
-    {INSTR_PUSH, "push", {0}, {0x68}, OPX_NONE, 0x00, OPT_IMM, {8}, 0, 1},
-    {INSTR_PUSH, "push", {0}, {0xFF}, OPX_NONE, 0x30, OPT_MEM, {8}},
+    {INSTR_PUSH, {"push"}, {0}, {0x50}, OPX_REG, 0x00, OPT_REG, {8}},
+    {INSTR_PUSH, {"push"}, {0}, {0x68}, OPX_NONE, 0x00, OPT_IMM, {8}, 0, 1},
+    {INSTR_PUSH, {"push"}, {0}, {0xFF}, OPX_NONE, 0x30, OPT_MEM, {8}},
 
-    {INSTR_RET, "ret", {0}, {0xC3}, OPX_NONE, 0x00, OPT_NONE},
+    {INSTR_RET, {"ret"}, {0}, {0xC3}, OPX_NONE, 0x00, OPT_NONE},
 
-    {INSTR_SAR, "sar", {0}, {0xC0}, OPX_W, 0xF8, OPT_IMM_REG, {1}},
-    {INSTR_SAR, "sar", {0}, {0xD2}, OPX_W, 0xF8, OPT_REG_REG, {1, IMPL_CX}},
+    {INSTR_SAR, {"sar"}, {0}, {0xC0}, OPX_W, 0xF8, OPT_IMM_REG, {1}},
+    {INSTR_SAR, {"sar"}, {0}, {0xD2}, OPX_W, 0xF8, OPT_REG_REG, {1, IMPL_CX}},
 
-    {INSTR_SETcc, "set", {0}, {0x0F, 0x90}, OPX_tttn, 0xC0, OPT_REG, {1}},
+    {INSTR_SETcc, {"set"}, {0}, {0x0F, 0x90}, OPX_tttn, 0xC0, OPT_REG, {1}},
 
-    {INSTR_SHL, "shl", {0}, {0xC0}, OPX_W, 0xE0, OPT_IMM_REG, {1}},
-    {INSTR_SHL, "shl", {0}, {0xD2}, OPX_W, 0xE0, OPT_REG_REG, {{1, IMPL_CX}}},
+    {INSTR_SHL, {"shl"}, {0}, {0xC0}, OPX_W, 0xE0, OPT_IMM_REG, {1}},
+    {INSTR_SHL, {"shl"}, {0}, {0xD2}, OPX_W, 0xE0, OPT_REG_REG, {{1, IMPL_CX}}},
 
-    {INSTR_SHR, "shr", {0}, {0xC0}, OPX_W, 0xE8, OPT_IMM_REG, {1}},
-    {INSTR_SHR, "shr", {0}, {0xD2}, OPX_W, 0xE8, OPT_REG_REG, {1, IMPL_CX}},
+    {INSTR_SHR, {"shr"}, {0}, {0xC0}, OPX_W, 0xE8, OPT_IMM_REG, {1}},
+    {INSTR_SHR, {"shr"}, {0}, {0xD2}, OPX_W, 0xE8, OPT_REG_REG, {1, IMPL_CX}},
 
-    {INSTR_SUB, "sub", {0}, {0x28}, OPX_SW, 0x00, OPT_REG_REG | OPT_MEM_REG | OPT_REG_MEM},
-    {INSTR_SUB, "sub", {0}, {0x80}, OPX_SW, 0x28, OPT_IMM_REG | OPT_IMM_MEM, {0}, 0, 1},
+    {INSTR_SUB, {"sub"}, {0}, {0x28}, OPX_SW, 0x00, OPT_REG_REG | OPT_MEM_REG | OPT_REG_MEM},
+    {INSTR_SUB, {"sub"}, {0}, {0x80}, OPX_SW, 0x28, OPT_IMM_REG | OPT_IMM_MEM, {0}, 0, 1},
 
-    {INSTR_TEST, "test", {0}, {0x84}, OPX_W, 0x00, OPT_REG_REG | OPT_MEM_REG | OPT_REG_MEM},
-    {INSTR_TEST, "test", {0}, {0xF6}, OPX_W, 0xC0, OPT_IMM_REG},
+    {INSTR_TEST, {"test"}, {0}, {0x84}, OPX_W, 0x00, OPT_REG_REG | OPT_MEM_REG | OPT_REG_MEM},
+    {INSTR_TEST, {"test"}, {0}, {0xF6}, OPX_W, 0xC0, OPT_IMM_REG},
 
-    {INSTR_XOR, "xor", {0}, {0x30}, OPX_DW, 0x00, OPT_REG_REG | OPT_MEM_REG | OPT_REG_MEM},
-    {INSTR_XOR, "xor", {0}, {0x80}, OPX_SW, 0xF0, OPT_IMM_REG | OPT_IMM_MEM, {0}, 0, 1},
+    {INSTR_XOR, {"xor"}, {0}, {0x30}, OPX_DW, 0x00, OPT_REG_REG | OPT_MEM_REG | OPT_REG_MEM},
+    {INSTR_XOR, {"xor"}, {0}, {0x80}, OPX_SW, 0xF0, OPT_IMM_REG | OPT_IMM_MEM, {0}, 0, 1},
 
     /* SSE */
 
-    {INSTR_ADDS, "addss", {0xF3}, {0x0F, 0x58}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{4}, {4}}, 1},
-    {INSTR_ADDS, "addsd", {0xF2}, {0x0F, 0x58}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{8}, {8}}, 1},
+    {INSTR_ADDS, {"addss"}, {0xF3}, {0x0F, 0x58}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{4}, {4}}, 1},
+    {INSTR_ADDS, {"addsd"}, {0xF2}, {0x0F, 0x58}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{8}, {8}}, 1},
 
-    {INSTR_CVTSI2S, "cvtsi2ss", {0xF3}, {0x0F, 0x2A}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{4 | 8}, {4}}, 1},
-    {INSTR_CVTSI2S, "cvtsi2sd", {0xF2}, {0x0F, 0x2A}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{4 | 8}, {8}}, 1},
+    {INSTR_CVTSI2S, {"cvtsi2ss"}, {0xF3}, {0x0F, 0x2A}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{4 | 8}, {4}}, 1},
+    {INSTR_CVTSI2S, {"cvtsi2sd"}, {0xF2}, {0x0F, 0x2A}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{4 | 8}, {8}}, 1},
 
-    {INSTR_CVTS2S, "cvtss2sd", {0xF3}, {0x0F, 0x5A}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{4}, {8}}, 1},
-    {INSTR_CVTS2S, "cvtsd2ss", {0xF2}, {0x0F, 0x5A}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{8}, {4}}, 1},
+    {INSTR_CVTS2S, {"cvtss2sd"}, {0xF3}, {0x0F, 0x5A}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{4}, {8}}, 1},
+    {INSTR_CVTS2S, {"cvtsd2ss"}, {0xF2}, {0x0F, 0x5A}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{8}, {4}}, 1},
 
-    {INSTR_CVTTS2SI, "cvttss2si", {0xF3}, {0x0F, 0x2C}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{4}, {4 | 8}}, 1},
-    {INSTR_CVTTS2SI, "cvttsd2si", {0xF2}, {0x0F, 0x2C}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{8}, {4 | 8}}, 1},
+    {INSTR_CVTTS2SI, {"cvttss2si"}, {0xF3}, {0x0F, 0x2C}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{4}, {4 | 8}}, 1},
+    {INSTR_CVTTS2SI, {"cvttsd2si"}, {0xF2}, {0x0F, 0x2C}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{8}, {4 | 8}}, 1},
 
-    {INSTR_DIVS, "divss", {0xF3}, {0x0F, 0x5E}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{4}, {4}}, 1},
-    {INSTR_DIVS, "divsd", {0xF2}, {0x0F, 0x5E}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{8}, {8}}, 1},
+    {INSTR_DIVS, {"divss"}, {0xF3}, {0x0F, 0x5E}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{4}, {4}}, 1},
+    {INSTR_DIVS, {"divsd"}, {0xF2}, {0x0F, 0x5E}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{8}, {8}}, 1},
 
-    {INSTR_MULS, "mulss", {0xF3}, {0x0F, 0x59}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{4}, {4}}, 1},
-    {INSTR_MULS, "mulsd", {0xF2}, {0x0F, 0x59}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{8}, {8}}, 1},
+    {INSTR_MULS, {"mulss"}, {0xF3}, {0x0F, 0x59}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{4}, {4}}, 1},
+    {INSTR_MULS, {"mulsd"}, {0xF2}, {0x0F, 0x59}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{8}, {8}}, 1},
 
-    {INSTR_SUBS, "subss", {0xF3}, {0x0F, 0x5C}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{4}, {4}}, 1},
-    {INSTR_SUBS, "subsd", {0xF2}, {0x0F, 0x5C}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{8}, {8}}, 1},
+    {INSTR_SUBS, {"subss"}, {0xF3}, {0x0F, 0x5C}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{4}, {4}}, 1},
+    {INSTR_SUBS, {"subsd"}, {0xF2}, {0x0F, 0x5C}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{8}, {8}}, 1},
 
-    {INSTR_MOVAP, "movaps", {0}, {0x0F, 0x29}, OPX_NONE, 0x00, OPT_REG_MEM, {{4}, {4}}},
+    {INSTR_MOVAP, {"movaps"}, {0}, {0x0F, 0x29}, OPX_NONE, 0x00, OPT_REG_MEM, {{4}, {4}}},
 
-    {INSTR_MOVS, "movss", {0xF3}, {0x0F, 0x10}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{4}, {4}}, 1},
-    {INSTR_MOVS, "movss", {0xF3}, {0x0F, 0x11}, OPX_NONE, 0x00, OPT_REG_MEM, {{4}, {4}}},
-    {INSTR_MOVS, "movsd", {0xF2}, {0x0F, 0x10}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{8}, {8}}, 1},
-    {INSTR_MOVS, "movsd", {0xF2}, {0x0F, 0x11}, OPX_NONE, 0x00, OPT_REG_MEM, {{8}, {8}}},
+    {INSTR_MOVS, {"movss"}, {0xF3}, {0x0F, 0x10}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{4}, {4}}, 1},
+    {INSTR_MOVS, {"movss"}, {0xF3}, {0x0F, 0x11}, OPX_NONE, 0x00, OPT_REG_MEM, {{4}, {4}}},
+    {INSTR_MOVS, {"movsd"}, {0xF2}, {0x0F, 0x10}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{8}, {8}}, 1},
+    {INSTR_MOVS, {"movsd"}, {0xF2}, {0x0F, 0x11}, OPX_NONE, 0x00, OPT_REG_MEM, {{8}, {8}}},
 
-    {INSTR_UCOMIS, "ucomiss", {0}, {0x0F, 0x2E}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{4}, {4}}, 1},
-    {INSTR_UCOMIS, "ucomisd", {0x66}, {0x0F, 0x2E}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{8}, {8}}, 1},
+    {INSTR_UCOMIS, {"ucomiss"}, {0}, {0x0F, 0x2E}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{4}, {4}}, 1},
+    {INSTR_UCOMIS, {"ucomisd"}, {0x66}, {0x0F, 0x2E}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{8}, {8}}, 1},
 
-    {INSTR_PXOR, "pxor", {0x66}, {0x0F, 0xEF}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{8}, {8}}, 1},
+    {INSTR_PXOR, {"pxor"}, {0x66}, {0x0F, 0xEF}, OPX_NONE, 0x00, OPT_REG_REG | OPT_MEM_REG, {{8}, {8}}, 1},
 
     /* x87 */ 
 
-    {INSTR_FADDP, "faddp", {0}, {0xD8 | 6}, OPX_NONE, 0x00, OPT_REG},
+    {INSTR_FADDP, {"faddp"}, {0}, {0xD8 | 6}, OPX_NONE, 0x00, OPT_REG},
 
-    {INSTR_FDIVRP, "fdivrp", {0}, {0xD8 | 6}, OPX_NONE, 0x38, OPT_REG},
+    {INSTR_FDIVRP, {"fdivrp"}, {0}, {0xD8 | 6}, OPX_NONE, 0x38, OPT_REG},
 
-    {INSTR_FILD, "filds", {0}, {0xD8 | 7}, OPX_NONE, 0x00, OPT_MEM, {{2}, {2}}},
-    {INSTR_FILD, "fildl", {0}, {0xD8 | 3}, OPX_NONE, 0x00, OPT_MEM, {{4}, {4}}},
-    {INSTR_FILD, "fildq", {0}, {0xD8 | 7}, OPX_NONE, 0x28, OPT_MEM, {{8}, {8}}},
+    {INSTR_FILD, {"filds"}, {0}, {0xD8 | 7}, OPX_NONE, 0x00, OPT_MEM, {{2}, {2}}},
+    {INSTR_FILD, {"fildl"}, {0}, {0xD8 | 3}, OPX_NONE, 0x00, OPT_MEM, {{4}, {4}}},
+    {INSTR_FILD, {"fildq"}, {0}, {0xD8 | 7}, OPX_NONE, 0x28, OPT_MEM, {{8}, {8}}},
 
-    {INSTR_FISTP, "fistps", {0}, {0xD8 | 7}, OPX_NONE, 0x18, OPT_MEM, {{2}, {2}}},
-    {INSTR_FISTP, "fistpl", {0}, {0xD8 | 3}, OPX_NONE, 0x18, OPT_MEM, {{4}, {4}}},
-    {INSTR_FISTP, "fistpq", {0}, {0xD8 | 7}, OPX_NONE, 0x38, OPT_MEM, {{8}, {8}}},
+    {INSTR_FISTP, {"fistps"}, {0}, {0xD8 | 7}, OPX_NONE, 0x18, OPT_MEM, {{2}, {2}}},
+    {INSTR_FISTP, {"fistpl"}, {0}, {0xD8 | 3}, OPX_NONE, 0x18, OPT_MEM, {{4}, {4}}},
+    {INSTR_FISTP, {"fistpq"}, {0}, {0xD8 | 7}, OPX_NONE, 0x38, OPT_MEM, {{8}, {8}}},
 
-    {INSTR_FLD, "flds", {0}, {0xD8 | 1}, OPX_NONE, 0x00, OPT_MEM, {{4}, {4}}},
-    {INSTR_FLD, "fldl", {0}, {0xD8 | 5}, OPX_NONE, 0x00, OPT_MEM, {{8}, {8}}},
-    {INSTR_FLD, "fldt", {0}, {0xD8 | 3}, OPX_NONE, 0x28, OPT_MEM}, /* 80 bit */
-    {INSTR_FLD, "fld", {0}, {0xD8 | 1}, OPX_NONE, 0x00, OPT_REG},
+    {INSTR_FLD, {"flds"}, {0}, {0xD8 | 1}, OPX_NONE, 0x00, OPT_MEM, {{4}, {4}}},
+    {INSTR_FLD, {"fldl"}, {0}, {0xD8 | 5}, OPX_NONE, 0x00, OPT_MEM, {{8}, {8}}},
+    {INSTR_FLD, {"fldt"}, {0}, {0xD8 | 3}, OPX_NONE, 0x28, OPT_MEM}, /* 80 bit */
+    {INSTR_FLD, {"fld"}, {0}, {0xD8 | 1}, OPX_NONE, 0x00, OPT_REG},
 
-    {INSTR_FLDCW, "fldcw", {0}, {0xD8 | 1}, OPX_NONE, 0x28, OPT_MEM},
+    {INSTR_FLDCW, {"fldcw"}, {0}, {0xD8 | 1}, OPX_NONE, 0x28, OPT_MEM},
 
-    {INSTR_FMULP, "fmulp", {0}, {0xD8 | 6}, OPX_NONE, 0x08, OPT_REG},
+    {INSTR_FMULP, {"fmulp"}, {0}, {0xD8 | 6}, OPX_NONE, 0x08, OPT_REG},
 
-    {INSTR_FNSTCW, "fnstcw", {0}, {0xD8 | 1}, OPX_NONE, 0x38, OPT_MEM},
+    {INSTR_FNSTCW, {"fnstcw"}, {0}, {0xD8 | 1}, OPX_NONE, 0x38, OPT_MEM},
 
-    {INSTR_FSTP, "fstps", {0}, {0xD8 | 1}, OPX_NONE, 0x18, OPT_MEM, {{4}, {8}}},
-    {INSTR_FSTP, "fstpl", {0}, {0xD8 | 5}, OPX_NONE, 0x18, OPT_MEM, {{8}, {8}}},
-    {INSTR_FSTP, "fstpt", {0}, {0xD8 | 3}, OPX_NONE, 0x38, OPT_MEM}, /* 80 bit */
-    {INSTR_FSTP, "fstp", {0}, {0xD8 | 5}, OPX_NONE, 0x18, OPT_REG},
+    {INSTR_FSTP, {"fstps"}, {0}, {0xD8 | 1}, OPX_NONE, 0x18, OPT_MEM, {{4}, {8}}},
+    {INSTR_FSTP, {"fstpl"}, {0}, {0xD8 | 5}, OPX_NONE, 0x18, OPT_MEM, {{8}, {8}}},
+    {INSTR_FSTP, {"fstpt"}, {0}, {0xD8 | 3}, OPX_NONE, 0x38, OPT_MEM}, /* 80 bit */
+    {INSTR_FSTP, {"fstp"}, {0}, {0xD8 | 5}, OPX_NONE, 0x18, OPT_REG},
 
-    {INSTR_FSUBRP, "fsubrp", {0}, {0xD8 | 6}, OPX_NONE, 0x28, OPT_REG},
+    {INSTR_FSUBRP, {"fsubrp"}, {0}, {0xD8 | 6}, OPX_NONE, 0x28, OPT_REG},
 
-    {INSTR_FUCOMIP, "fucomip", {0}, {0xD8 | 7}, OPX_NONE, 0x28, OPT_REG},
+    {INSTR_FUCOMIP, {"fucomip"}, {0}, {0xD8 | 7}, OPX_NONE, 0x28, OPT_REG},
 
-    {INSTR_FXCH, "fxch", {0}, {0xD8 | 1}, OPX_NONE, 0x08, OPT_REG},
+    {INSTR_FXCH, {"fxch"}, {0}, {0xD8 | 1}, OPX_NONE, 0x08, OPT_REG},
     {0},
 };
 
@@ -838,7 +842,7 @@ static struct encoding find_encoding(struct instruction instr)
         i++;
     } while (encodings[i].opc == instr.opcode);
 
-    printf("%s: %d, %d (%d, %d)\n", encodings[i-1].mnemonic, instr.opcode, instr.optype, instr.source.width, instr.dest.width);
+    printf("%s: %d, %d (%d, %d)\n", encodings[i-1].mnemonic.str, instr.opcode, instr.optype, instr.source.width, instr.dest.width);
 
     error("Unsupported instruction.");
     exit(1);
@@ -873,22 +877,19 @@ INTERNAL int mnemonic_match_operands(
     union operand *dest)
 {
     int i;
-    int ws, wd;
+    int ws, wd, sfx;
+    size_t mlen;
     struct encoding *enc;
     struct instruction instr = {0};
     unsigned int w0, w1;
 
-    /*printf("Looking for %d: %d, %d\n", optype, source->width, dest->width);*/
+    /*printf("Looking for (%d) %d, %d // %s\n", optype, source->width, dest->width, mnemonic);*/
 
-    /* Try to construct best match for each entry in table. */
+    assert(length > 0);
     for (i = 0; i < sizeof(encodings) / sizeof(encodings[0]); ++i) {
         enc = &encodings[i];
-        if (!enc->mnemonic)
+        if (!enc->mnemonic.str)
             break;
-
-        /* todo: match better with removed suffix. */
-        if (strncmp(mnemonic, enc->mnemonic, length))
-            continue;
 
         if ((enc->optype & optype) != optype)
             continue;
@@ -897,6 +898,31 @@ INTERNAL int mnemonic_match_operands(
         w1 = enc->openc[1].widths;
         ws = source->width;
         wd = dest->width;
+        sfx = 0;
+
+        /* lea breaks rule with inferring memory operand size. */
+        if (enc->opc == INSTR_LEA) {
+            ws = w0;
+        }
+
+        mlen = strlen(enc->mnemonic.str);
+        if (length != mlen || strncmp(mnemonic, enc->mnemonic.str, length)) {
+            if (enc->mnemonic.suffix) switch (mnemonic[length - 1]) {
+            case 'b': sfx = 1; break;
+            case 'w': sfx = 2; break;
+            case 'l': sfx = 4; break;
+            case 'q': sfx = 8; break;
+            default: continue;
+            } else continue;
+
+            if (mlen == length - 1 && !strncmp(mnemonic, enc->mnemonic.str, length - 1)) {
+                /* Match instruction with suffix */
+                /*printf("Found with suffix %d\n", sfx);*/
+            } else {
+                sfx = 0;
+                continue;
+            }
+        }
 
         if ((ws && w0 && (ws & w0) == 0)
             || (wd && w1 && (wd & w1) == 0))
@@ -917,10 +943,13 @@ INTERNAL int mnemonic_match_operands(
         case OPT_MEM_REG:
         case OPT_IMM_REG:
         case OPT_IMM_MEM:
-            /* todo: Magic to fix operand width */
             if (!ws) {
                 if (!wd) {
-                    assert(0);
+                    if (!sfx) {
+                        error("Unable to determine instruction operand width.");
+                        exit(1);
+                    }
+                    ws = wd = sfx;
                 } else {
                     ws = wd;
                 }
@@ -940,8 +969,6 @@ INTERNAL int mnemonic_match_operands(
             source->width = ws;
             dest->width = wd;
             return enc->opc;
-        } else {
-            printf("Skipping!\n");
         }
     }
 
@@ -967,7 +994,7 @@ INTERNAL void get_mnemonic(struct instruction instr, char *buf)
     };
 
     enc = find_encoding(instr);
-    ptr = enc.mnemonic;
+    ptr = enc.mnemonic.str;
 
     while (*ptr) {
         *buf++ = *ptr++;

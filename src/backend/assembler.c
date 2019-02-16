@@ -307,14 +307,12 @@ static enum instr_optype parse__asm__operand(
             error("Invalid memory address operand.");
             exit(1);
         }
-        /*op->mem.width = *w;*/
         break;
     case ASM_CONSTANT:
         assert(*t.str == '$');
         l = strtol(t.str + 1, NULL, 0);
         op->imm.type = IMM_INT;
         op->imm.d.qword = l;
-        /*op->imm.width = *w;*/
         opt = OPT_IMM;
         break;
     case ASM_REG:
@@ -341,75 +339,6 @@ static enum instr_optype parse__asm__operand(
 
     *endptr = line;
     return opt;
-}
-
-enum instr_kind {
-    GENERAL,
-    SSE,
-    X87
-};
-
-#define OPT3 OPT_MEM_REG | OPT_REG_REG | OPT_REG_MEM | OPT_IMM_REG | OPT_IMM_MEM
-
-static struct instr_template {
-    const char *mnemonic;
-    enum opcode opcode;
-    enum instr_kind kind;
-    int opcount;
-    enum instr_optype optypes;
-} instr_templates[] = {
-    {"mov", INSTR_MOV, GENERAL, 2, OPT3},
-    {"add", INSTR_ADD, GENERAL, 2, OPT3},
-    {"lea", INSTR_LEA, GENERAL, 2, OPT_MEM_REG},
-    {"jmp", INSTR_JMP, GENERAL, 1, OPT_IMM},
-    {"movs", INSTR_MOVS, SSE, 2, OPT_REG_REG | OPT_REG_MEM | OPT_MEM_REG},
-    {"fld", INSTR_FLD, X87, 1, OPT_MEM},
-    {"fistp", INSTR_FISTP, X87, 1, OPT_MEM},
-    {"fild", INSTR_FILD, X87, 1, OPT_MEM},
-    {"fstp", INSTR_FSTP, X87, 1, OPT_MEM},
-};
-
-static const struct instr_template *find_instruction(
-    struct asm_token t,
-    int *ws,
-    int *wd)
-{
-    int i, ilen;
-    struct instr_template *tpl;
-
-    *ws = *wd = 0;
-    for (i = 0; i < sizeof(instr_templates) / sizeof(instr_templates[0]); ++i) {
-        tpl = &instr_templates[i];
-        ilen = strlen(tpl->mnemonic);
-        if ((ilen != t.len && ilen != t.len - 1)
-            || strncmp(tpl->mnemonic, t.str, ilen))
-        {
-            continue;
-        }
-
-        if (t.len == ilen + 1) {
-            if (tpl->kind == GENERAL) switch (t.str[ilen]) {
-                case 'b': *ws = *wd = 1; break;
-                case 'w': *ws = *wd = 2; break;
-                case 'l': *ws = *wd = 4; break;
-                case 'q': *ws = *wd = 8; break;
-                default: continue;
-            } else if (tpl->kind == SSE) switch (t.str[ilen]) {
-                case 's': *ws = *wd = 4; break;
-                case 'd': *ws = *wd = 8; break;
-                default: continue;
-            } else if (tpl->kind == X87) switch (t.str[ilen]) {
-                case 's': *ws = *wd = 4; break;
-                case 'l': *ws = *wd = 8; break;
-                case 't': *ws = *wd = 10; break;
-                default: continue;
-            }
-        }
-
-        return tpl;
-    }
-
-    return NULL;
 }
 
 static struct instruction parse__asm__instruction(

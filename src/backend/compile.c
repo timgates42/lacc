@@ -341,24 +341,24 @@ INTERNAL enum instr_optype allocation(struct var var, union operand *op)
 
     if (is_register_allocated(var)) {
         op->reg.r = allocated_register(var);
-        op->reg.width = size_of(var.type);
+        op->width = size_of(var.type);
         return OPT_REG;
     }
 
     switch (var.kind) {
     default: assert(0);
     case DIRECT:
-        op->mem = location_of(var, size_of(var.type));
+        op->mem.addr = address_of(var);
         break;
     case DEREF:
         tmp = var_direct(var.symbol);
         assert(is_register_allocated(tmp));
         ax = allocated_register(tmp);
-        op->mem = location(address(
-            displacement_from_offset(var.offset), ax, 0, 0), size_of(tmp.type));
+        op->mem.addr = address(displacement_from_offset(var.offset), ax, 0, 0);
         break;
     }
 
+    op->width = size_of(var.type);
     return OPT_MEM;
 }
 

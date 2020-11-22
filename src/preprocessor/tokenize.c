@@ -51,7 +51,7 @@ INTERNAL const struct token basic_token[] = {
             TOK(BOOL, "_Bool"),         {0},
             {0},                        {0},
             {0},                        {0},
-/* 0x38 */  IDN(STATIC_ASSERT, ""),     {0},
+/* 0x38 */  IDN(STATIC_ASSERT, "_Static_assert"),     {0},
             TOK(COLON, ":"),            TOK(SEMICOLON, ";"),
             TOK(LT, "<"),               TOK(ASSIGN, "="),
             TOK(GT, ">"),               TOK(QUESTION, "?"),
@@ -231,7 +231,7 @@ INTERNAL struct token convert_preprocessing_number(struct token t)
 
     assert(t.token == PREP_NUMBER);
     str = str_raw(t.d.string);
-    len = t.d.string.len;
+    len = str_len(t.d.string);
     tok.leading_whitespace = t.leading_whitespace;
 
     /*
@@ -369,12 +369,14 @@ INTERNAL struct token convert_preprocessing_string(struct token t)
     struct token tok = {STRING};
     const char *raw, *ptr;
     char *buf, *btr;
+    size_t len;
 
     raw = str_raw(t.d.string);
-    buf = get_string_buffer(t.d.string.len);
+    len = str_len(t.d.string);
+    buf = get_string_buffer(len);
     btr = buf;
     ptr = raw;
-    while (ptr - raw < t.d.string.len) {
+    while (ptr - raw < len) {
         *btr++ = convert_char(ptr, &ptr);
     }
 
@@ -516,7 +518,7 @@ static struct token strtostr(const char *in, const char **endptr)
 
 #define MATCH(id) \
     do { \
-        *endptr = start + basic_token[id].d.string.len; \
+        *endptr = start + str_len(basic_token[id].d.string); \
         return basic_token[id]; \
     } while (0)
 
@@ -534,12 +536,8 @@ static struct token strtoident(const char *in, const char **endptr)
         if (S6('_', 'a', 's', 'm', '_', '_')) MATCH(ASM);
         if (S4('B', 'o', 'o', 'l')) MATCH(BOOL);
         if (S7('A', 'l', 'i', 'g', 'n', 'o', 'f')) MATCH(ALIGNOF);
-        if (!strncmp(in, "Static_assert", 13)) {
-            ident = basic_token[STATIC_ASSERT];
-            ident.d.string = str_init("_Static_assert");
-            *endptr = start + ident.d.string.len;
-            return ident;
-        }
+        if (!strncmp(in, "Static_assert", 13) && E(13))
+            MATCH(STATIC_ASSERT);
         break;
     case 'a':
         if (S3('u', 't', 'o')) MATCH(AUTO);

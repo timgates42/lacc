@@ -31,14 +31,22 @@ enum hash_op {
 static unsigned long djb2_hash(String str)
 {
     int c;
+    const char *p, *q;
     unsigned long hash = 5381;
-    const char
-        *p = str_raw(str),
-        *q = p + str.len;
 
-    while (p < q) {
-        c = *p++;
-        hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
+    if (str.data[15]) {
+        p = str.p.str;
+        q = p + (str.p.len & MAX_STRING_LEN);
+        while (p < q) {
+            c = *p++;
+            hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
+        }
+
+    } else {
+        p = str.data;
+        while ((c = *p++) != '\0') {
+            hash = ((hash << 5) + hash) + c;
+        }
     }
 
     return hash;

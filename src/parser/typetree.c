@@ -215,7 +215,7 @@ static struct member *add_member(Type parent, struct member m)
         return NULL;
     }
 
-    if (m.name.len && find_type_member(parent, m.name, NULL)) {
+    if (!str_isempty(m.name) && find_type_member(parent, m.name, NULL)) {
         error("Member '%s' already exists.", str_raw(m.name));
         exit(1);
     }
@@ -707,12 +707,12 @@ INTERNAL void type_add_field(Type parent, String name, Type type, size_t width)
         exit(1);
     }
 
-    if (name.len && !width) {
+    if (!str_isempty(name) && !width) {
         error("Zero length field %s.", str_raw(name));
         exit(1);
     }
 
-    if (is_union(parent) && name.len == 0) {
+    if (is_union(parent) && str_isempty(name)) {
         return;
     }
 
@@ -778,7 +778,7 @@ static size_t remove_anonymous_fields(struct typetree *t)
     maxalign = 0;
     for (i = array_len(&t->members) - 1; i >= 0; --i) {
         m = &array_get(&t->members, i);
-        if (m->name.len == 0) {
+        if (str_isempty(m->name)) {
             array_erase(&t->members, i);
         } else {
             align = type_alignment(m->type);

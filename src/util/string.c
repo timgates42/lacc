@@ -2,9 +2,12 @@
 # define INTERNAL
 # define EXTERNAL extern
 #endif
+#include <lacc/context.h>
 #include <lacc/string.h>
 
+#include <assert.h>
 #include <ctype.h>
+#include <stdlib.h>
 #include <string.h>
 
 static int printchar(FILE *stream, char ch)
@@ -38,11 +41,13 @@ static int printchar(FILE *stream, char ch)
 INTERNAL int fprintstr(FILE *stream, String str)
 {
     int n, i;
+    size_t len;
     const char *raw;
 
     raw = str_raw(str);
+    len = str_len(str);
     putc('"', stream);
-    for (n = 0, i = 0; i < str.len; ++i) {
+    for (n = 0, i = 0; i < len; ++i) {
         n += printchar(stream, raw[i]);
     }
 
@@ -53,44 +58,61 @@ INTERNAL int fprintstr(FILE *stream, String str)
 INTERNAL String str_init(const char *str)
 {
     String s = {0};
+    size_t len;
 
-    s.len = strlen(str);
-    if (s.len < SHORT_STRING_LEN) {
-        memcpy(s.a.str, str, s.len);
-    } else {
-        s.p.str = str;
-    }
-
+    len = strlen(str);
+    str_set(&s, str, len);
     return s;
+}
+
+INTERNAL void str_set(String *s, const char *str, size_t len)
+{
+    if (len < SHORT_STRING_LEN) {
+        memcpy(s->data, str, len);
+        memset(s->data + len, '\0', 16 - len);
+    } else if (len <= MAX_STRING_LEN) {
+        s->p.str = str;
+        s->p.len = len;
+        s->data[15] = 1;
+    } else {
+        error("String length %lu exceeds maximum supported size.", len);
+        exit(1);
+    }
+}
+
+INTERNAL size_t str_len(String s)
+{
+    return s.data[15] ? s.p.len & MAX_STRING_LEN : strlen(s.data);
+}
+
+INTERNAL int str_isempty(String s)
+{
+    return s.data[15] ? (s.p.len & MAX_STRING_LEN) == 0 : s.data[0] == '\0';
 }
 
 INTERNAL int str_cmp(String s1, String s2)
 {
-    long *a, *b;
-    if (s1.len != s2.len) {
+    if (s1.p.len != s2.p.len)
         return 1;
-    }
 
-    if (s1.len < SHORT_STRING_LEN) {
-        a = (long *) ((void *) &s1);
-        b = (long *) ((void *) &s2);
-        return a[0] != b[0] || a[1] != b[1];
-    }
-
-    return memcmp(s1.p.str, s2.p.str, s1.len);
+    return s1.data[15]
+        ? memcmp(s1.p.str, s2.p.str, s1.p.len & MAX_STRING_LEN)
+        : strcmp(s1.data, s2.data);
 }
 
-INTERNAL const char *str_chr(String s, char c)
+INTERNAL int str_haschr(String s, char c)
 {
     int i;
+    size_t len;
     const char *str;
 
+    len = str_len(s);
     str = str_raw(s);
-    for (i = 0; i < s.len; ++i) {
+    for (i = 0; i < len; ++i) {
         if (str[i] == c) {
-            return str + i;
+            return 1;
         }
     }
 
-    return NULL;
+    return 0;
 }
